@@ -1,0 +1,8 @@
+# Ignore cloud credentials
+google_secret.json
+
+# Ignore output images
+output/
+
+# Ignore Python cache files
+__pycache__/
