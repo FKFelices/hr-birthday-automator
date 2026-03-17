@@ -1,0 +1,36 @@
+name: HR Birthday Bot Daily Run
+
+on:
+  schedule:
+    
+    - cron: '0 0 * * *'
+  workflow_dispatch: # This magical line gives you a manual "Run" button on GitHub
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest # Spins up a fresh Linux server
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install Pillow "rembg[cpu]" requests gspread
+
+    - name: Rebuild Google Secret JSON
+      run: |
+        echo '${{ secrets.GOOGLE_SECRET_JSON }}' > google_secret.json
+
+    - name: Run the generator script
+      env:
+        BOT_EMAIL: ${{ secrets.BOT_EMAIL }}
+        BOT_PASSWORD: ${{ secrets.BOT_PASSWORD }}
+        MANAGER_EMAIL: ${{ secrets.MANAGER_EMAIL }}
+      run: python generator.py
