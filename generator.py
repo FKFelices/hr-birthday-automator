@@ -27,10 +27,9 @@ def convert_gdrive_link(url):
 def send_delivery_email(employee_name, image_path):
     print(f"  -> Preparing email delivery for {employee_name}...")
     
-    # --- CONFIGURATION (Update these!) ---
-    bot_email = "botniflorence@gmail.com"
-    bot_password = "dcoh totx qhen kdfz" 
-    manager_email = "feliceskylekun@gmail.com"
+    bot_email = os.environ.get("BOT_EMAIL")
+    bot_password = os.environ.get("BOT_PASSWORD") 
+    manager_email = os.environ.get("MANAGER_EMAIL")
 
     msg = EmailMessage()
     msg['Subject'] = f"🎉 New Birthday Card Ready: {employee_name}"
