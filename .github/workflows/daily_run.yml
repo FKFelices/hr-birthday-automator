@@ -3,7 +3,7 @@ name: HR Birthday Bot Daily Run
 on:
   schedule:
     
-    - cron: '0 2 * * *'
+    - cron: '0 22 * * *'
   workflow_dispatch: # This magical line gives you a manual "Run" button on GitHub
 
 jobs:
