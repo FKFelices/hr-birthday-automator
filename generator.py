@@ -5,7 +5,7 @@ import gspread
 import smtplib
 from email.message import EmailMessage
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from rembg import remove, new_session
 
@@ -169,7 +169,8 @@ def run_cloud_birthday_check():
         print(f"[FATAL ERROR] Could not connect to Google Cloud: {e}")
         return
 
-    today = datetime.today().strftime('%m-%d')
+    ph_timezone = timezone(timedelta(hours=8))
+    today = datetime.now(ph_timezone).strftime('%m-%d')
     print(f"Connected to Cloud. Checking for birthdays matching: {today}\n")
     print("-" * 50)
     

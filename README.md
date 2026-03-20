@@ -13,7 +13,7 @@ This project eliminates the manual graphic design and tracking process for HR an
 * CI/CD & Hosting: GitHub Actions (Cron scheduling)
 
 ## 🚀 Key Features
-* Zero-Touch Automation: Runs dynamically at 8:00 AM PHT daily via a GitHub Actions scheduled workflow. No local hardware required.
+* Zero-Touch Automation: Runs dynamically at 6:00 AM PHT daily via a GitHub Actions scheduled workflow. No local hardware required.
 * Intelligent Image Fetching: Processes headshots entirely in memory (`BytesIO`) from URLs, keeping the server lightweight.
 * AI Human Segmentation: Utilizes advanced AI matting and post-processing masks to perfectly cut out employee headshots, even with complex backgrounds or lighting.
 * Dynamic Graphical Templates: Automatically routes graphical assets, typography, and font stroke-widths based on employee variables.
