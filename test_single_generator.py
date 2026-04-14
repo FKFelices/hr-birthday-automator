@@ -2,16 +2,16 @@ import os
 import re
 import requests
 import gspread
-import smtplib
-from email.message import EmailMessage
 from io import BytesIO
-from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from rembg import remove, new_session
 
 # ==========================================
-# 1. HELPER: GOOGLE DRIVE LINK CONVERTER
+# 1. CONFIGURATION
 # ==========================================
+# Change this number to test a specific row in your Google Sheet!
+TARGET_ROW = 3
+
 def convert_gdrive_link(url):
     """Converts a standard Google Drive share link into a direct image download link."""
     if "drive.google.com" in url:
@@ -22,48 +22,7 @@ def convert_gdrive_link(url):
     return url 
 
 # ==========================================
-# 2. HELPER: AUTOMATED EMAIL DELIVERY
-# ==========================================
-def send_delivery_email(employee_name, image_path):
-    print(f"  -> Preparing email delivery for {employee_name}...")
-    
-    bot_email = os.environ.get("BOT_EMAIL")
-    bot_password = os.environ.get("BOT_PASSWORD") 
-    manager_email = os.environ.get("MANAGER_EMAIL")
-
-    msg = EmailMessage()
-    msg['Subject'] = f"🎉 New Birthday Card Ready: {employee_name}"
-    msg['From'] = bot_email
-    msg['To'] = manager_email
-    
-    msg.set_content(
-        f"Good morning po maam.!\n\n"
-        f"Birthday po ni {employee_name}. "
-        f"Mag papapost nlang po maam, thank you!.\n\n"
-        f"From,\n"
-        f"Florence"
-    )
-
-    try:
-        with open(image_path, 'rb') as f:
-            image_data = f.read()
-            image_name = os.path.basename(image_path)
-            
-        msg.add_attachment(image_data, maintype='image', subtype='png', filename=image_name)
-    except Exception as e:
-        print(f"  -> [ERROR] Could not attach image: {e}")
-        return
-
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login(bot_email, bot_password)
-            smtp.send_message(msg)
-            print(f"  -> [SUCCESS] Card emailed!")
-    except Exception as e:
-        print(f"  -> [ERROR] Failed to send email: {e}")
-
-# ==========================================
-# 3. CORE: THE GENERATOR FUNCTION
+# 2. CORE: THE GENERATOR FUNCTION (NO EMAIL)
 # ==========================================
 def generate_birthday_card(name, position, image_url, gender):
     
@@ -103,7 +62,6 @@ def generate_birthday_card(name, position, image_url, gender):
         do_post_process = True
 
     # --- DEFENSIVE IMAGE FETCHING ---
-    print(f"  -> Fetching photo from cloud database...")
     direct_url = convert_gdrive_link(image_url)
     
     try:
@@ -112,15 +70,15 @@ def generate_birthday_card(name, position, image_url, gender):
         
         if 'image' not in response.headers.get('Content-Type', ''):
             print(f"  -> [ERROR] The URL for {name} is not a valid image. Skipping.")
-            return
+            return False
             
         headshot = Image.open(BytesIO(response.content))
     except Exception as e:
         print(f"  -> [ERROR] Failed to download image for {name}. Error: {e}")
-        return
+        return False
 
 # --- AI BACKGROUND REMOVAL ---
-    print("  -> Running AI background remover...")
+    print("  -> Removing background (this takes a few seconds)...")
     human_model = new_session("u2net_human_seg")
     headshot = remove(
         headshot, 
@@ -135,9 +93,9 @@ def generate_birthday_card(name, position, image_url, gender):
 
     if bbox:
         headshot = headshot.crop(bbox)
-        print(f"  -> [FIX] Tight bounding box cropped for perfect centering.")
+        print(f"  -> [FIX] Content found. Tight bounding box cropped: {bbox}")
     else:
-        print(f"  -> [WARNING] Image seems totally transparent after removal.")
+        print(f"  -> [ERROR] Image seems totally transparent after removal.")
     # ========= SMART AUTO-CENTER FIX END =========
 
     headshot = ImageOps.fit(headshot, target_size, Image.Resampling.LANCZOS)
@@ -153,21 +111,17 @@ def generate_birthday_card(name, position, image_url, gender):
     draw.text((540, name_y), name, fill=name_color, font=name_font, anchor="mm", stroke_width=name_stroke, stroke_fill=(0,0,0))
     draw.text((540, pos_y), position, fill=pos_color, font=position_font, anchor="mm")
     
-    # --- SAVE & DELIVER ---
-    output_filename = f"output/{name.replace(' ', '_')}_bday.png"
+    # --- SAVE LOCALLY ---
+    output_filename = f"output/{name.replace(' ', '_')}_bday_TEST.png"
     template.save(output_filename)
-    print(f"  -> [SUCCESS] Successfully generated card for {name}!")
-    
-    # Trigger the automated email delivery
-    send_delivery_email(name, output_filename)
-    print("") # Adds a blank line for terminal readability
-
+    print(f"  -> [✅ SUCCESS] Saved test card to: {output_filename}")
+    return True
 
 # ==========================================
-# 4. PIPELINE: GOOGLE SHEETS AUTOMATION
+# 3. PIPELINE: SINGLE TARGET TESTER
 # ==========================================
-def run_cloud_birthday_check():
-    print("\nInitializing Birthday Automation Pipeline...")
+def run_single_row_test():
+    print(f"\n🛠️ Initializing Single Tester for ROW {TARGET_ROW} (Emails Disabled)...")
     
     if not os.path.exists("output"):
         os.makedirs("output")
@@ -180,31 +134,34 @@ def run_cloud_birthday_check():
         print(f"[FATAL ERROR] Could not connect to Google Cloud: {e}")
         return
 
-    ph_timezone = timezone(timedelta(hours=8))
-    today = datetime.now(ph_timezone).strftime('%m-%d')
-    print(f"Connected to Cloud. Checking for birthdays matching: {today}\n")
+    # In Google Sheets, Row 1 is headers, Row 2 is data index 0.
+    # Therefore, array index = TARGET_ROW - 2
+    data_index = TARGET_ROW - 2
+
+    if data_index < 0 or data_index >= len(hr_data):
+        print(f"❌ ERROR: Row {TARGET_ROW} is out of bounds or empty.")
+        return
+
+    row = hr_data[data_index]
+    name = str(row.get('Name', '')).strip()
+    
+    if not name:
+        print(f"❌ ERROR: Row {TARGET_ROW} does not contain an employee name.")
+        return
+        
     print("-" * 50)
+    print(f"Processing target: {name} (Position: {row.get('Position', 'Unknown')})")
     
-    match_found = False
-    
-    for row in hr_data:
-        if str(row['Birthday']).strip() == today:
-            match_found = True
-            print(f"🎉 Birthday Match: {row['Name']}")
-            
-            generate_birthday_card(
-                name=row['Name'],
-                position=row['Position'],
-                image_url=row['Image_URL'], 
-                gender=row['Gender']
-            )
-            
-    if not match_found:
-        print("Walang may birthday ngayon.")
+    generate_birthday_card(
+        name=name,
+        position=row.get('Position', ''),
+        image_url=row.get('Image_URL', ''), 
+        gender=row.get('Gender', 'Male')
+    )
     print("-" * 50)
 
 # ==========================================
 # EXECUTE PROGRAM
 # ==========================================
 if __name__ == "__main__":
-    run_cloud_birthday_check()
+    run_single_row_test()
